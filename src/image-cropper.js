@@ -263,19 +263,20 @@ Component({
             _canvas_height: this.data.height,
             _canvas_width: this.data.width,
         });
-        this._initCanvas();
-        this.data.imgSrc && (this.data.imgSrc = this.data.imgSrc);
-        //根据开发者设置的图片目标尺寸计算实际尺寸
-        this._initImageSize();
-        //设置裁剪框大小>设置图片尺寸>绘制canvas
-        this._computeCutSize();
-        //检查裁剪框是否在范围内
-        this._cutDetectionPosition();
-        //检查canvas是否在范围内
-        this._canvasDetectionPosition();
-        //初始化完成
-        this.triggerEvent('load', {
-            cropper: this
+        this._initCanvas().then(() => {
+            this.data.imgSrc && (this.data.imgSrc = this.data.imgSrc);
+            //根据开发者设置的图片目标尺寸计算实际尺寸
+            this._initImageSize();
+            //设置裁剪框大小>设置图片尺寸>绘制canvas
+            this._computeCutSize();
+            //检查裁剪框是否在范围内
+            this._cutDetectionPosition();
+            //检查canvas是否在范围内
+            this._canvasDetectionPosition();
+            //初始化完成
+            this.triggerEvent('load', {
+                cropper: this
+            });
         });
     },
     methods: {
@@ -303,13 +304,9 @@ Component({
             getImg(getCallback) {
                 this._draw(() => {
                     wx.canvasToTempFilePath({
-                        width: this.data.width * this.data.export_scale,
-                        height: Math.round(this.data.height * this.data.export_scale),
-                        destWidth: this.data.width * this.data.export_scale,
-                        destHeight: Math.round(this.data.height) * this.data.export_scale,
                         fileType: 'png',
                         quality: this.data.quality,
-                        canvasId: this.data.el,
+                        canvas: this.data.canvas,
                         success: (res) => {
                             getCallback({
                                 url: res.tempFilePath,
@@ -527,9 +524,18 @@ Component({
             },
             _initCanvas() {
                 //初始化canvas
-                if (!this.data.ctx) {
-                    this.data.ctx = wx.createCanvasContext("image-cropper", this);
-                }
+                return new Promise(resolve => {
+                    if (!this.data.ctx) {
+                        const query = this.createSelectorQuery();
+                        query.select('#image-cropper')
+                        .fields({ node: true, size: true })
+                        .exec((res) => {
+                            this.data.canvas = res[0].node;
+                            this.data.ctx = this.data.canvas.getContext('2d');
+                            resolve();
+                        });
+                    }
+                });
             },
             /**
              * 根据开发者设置的图片目标尺寸计算实际尺寸
@@ -840,13 +846,9 @@ Component({
                     if ((x >= this.data.cut_left && x <= (this.data.cut_left + this.data.width)) && (y >= this.data.cut_top && y <= (this.data.cut_top + this.data.height))) {
                         //生成图片并回调
                         wx.canvasToTempFilePath({
-                            width: this.data.width * this.data.export_scale,
-                            height: Math.round(this.data.height * this.data.export_scale),
-                            destWidth: this.data.width * this.data.export_scale,
-                            destHeight: Math.round(this.data.height) * this.data.export_scale,
                             fileType: 'png',
                             quality: this.data.quality,
-                            canvasId: this.data.el,
+                            canvas: this.data.canvas,
                             success: (res) => {
                                 this.triggerEvent('tapcut', {
                                     url: res.tempFilePath,
@@ -858,6 +860,14 @@ Component({
                     }
                 });
             },
+            //解决drawImage参数1报错
+            _loadingImg (url) {
+                let _img = this.data.canvas.createImage();
+                return new Promise(resolve => {
+                    _img.onload = ()=> resolve(_img);
+                    _img.src = url;
+                });
+            },
             //渲染
             _draw(callback) {
                 if (!this.data.imgSrc) return;
@@ -865,18 +875,27 @@ Component({
                     //图片实际大小
                     let img_width = this.data.img_width * this.data.scale * this.data.export_scale;
                     let img_height = this.data.img_height * this.data.scale * this.data.export_scale;
+
                     //canvas和图片的相对距离
                     var xpos = this.data._img_left - this.data.cut_left;
                     var ypos = this.data._img_top - this.data.cut_top;
+
+                    //设置canvas大小 
+                    this.data.canvas.width = this.data.width * this.data.export_scale;
+                    this.data.canvas.height = this.data.height * this.data.export_scale;
+
                     //旋转画布
                     this.data.ctx.translate(xpos * this.data.export_scale, ypos * this.data.export_scale);
                     this.data.ctx.rotate(this.data.angle * Math.PI / 180);
-                    this.data.ctx.drawImage(this.data.imgSrc, -img_width / 2, -img_height / 2, img_width, img_height);
-                    this.data.ctx.draw(false, () => {
-                        callback && callback();
+
+                    this._loadingImg(this.data.imgSrc).then(res => {
+                        this.data.ctx.drawImage(res, -img_width / 2, -img_height / 2, img_width, img_height);
+                        setTimeout(()=>{ //延迟执行
+                            callback && callback();
+                        },10);
                     });
                 }
-                if (this.data.ctx.width != this.data.width || this.data.ctx.height != this.data.height) {
+                if (this.data.canvas.width != this.data.width || this.data.canvas.height != this.data.height) {
                     //优化拖动裁剪框，所以必须把宽高设置放在离用户触发渲染最近的地方
                     this.setData({
                         _canvas_height: this.data.height,
