@@ -896,6 +896,12 @@ Component({
                     });
                 }
                 let loadCanvas = () => {
+                    if(!this.data.canvas){
+                        setTimeout(() => {
+                            loadCanvas();
+                        }, 40);
+                        return;
+                    }
                     if (this.data.canvas.width != this.data.width || this.data.canvas.height != this.data.height) {
                         //优化拖动裁剪框，所以必须把宽高设置放在离用户触发渲染最近的地方
                         this.setData({
@@ -911,13 +917,7 @@ Component({
                         draw();
                     }
                 };
-                if(this.data.canvas){
-                    loadCanvas();
-                }else{
-                    setTimeout(() => {
-                        loadCanvas();
-                    }, 40);
-                }
+                loadCanvas();
             },
             //裁剪框处理
             _cutTouchMove(e) {
