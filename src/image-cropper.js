@@ -895,19 +895,28 @@ Component({
                         },10);
                     });
                 }
-                if (this.data.canvas.width != this.data.width || this.data.canvas.height != this.data.height) {
-                    //优化拖动裁剪框，所以必须把宽高设置放在离用户触发渲染最近的地方
-                    this.setData({
-                        _canvas_height: this.data.height,
-                        _canvas_width: this.data.width,
-                    }, () => {
-                        //延迟40毫秒防止点击过快出现拉伸或裁剪过多
-                        setTimeout(() => {
-                            draw();
-                        }, 40);
-                    });
-                } else {
-                    draw();
+                let loadCanvas = () => {
+                    if (this.data.canvas.width != this.data.width || this.data.canvas.height != this.data.height) {
+                        //优化拖动裁剪框，所以必须把宽高设置放在离用户触发渲染最近的地方
+                        this.setData({
+                            _canvas_height: this.data.height,
+                            _canvas_width: this.data.width,
+                        }, () => {
+                            //延迟40毫秒防止点击过快出现拉伸或裁剪过多
+                            setTimeout(() => {
+                                draw();
+                            }, 40);
+                        });
+                    } else {
+                        draw();
+                    }
+                };
+                if(this.data.canvas){
+                    loadCanvas();
+                }else{
+                    setTimeout(() => {
+                        loadCanvas();
+                    }, 40);
                 }
             },
             //裁剪框处理
